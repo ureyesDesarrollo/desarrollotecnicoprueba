@@ -1,28 +1,30 @@
+// netlify/functions/send-email.js
+import nodemailer from 'nodemailer';
+
 export async function handler(event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   try {
     const { to, subject, html } = JSON.parse(event.body || '{}');
-    if (!to || !subject || !html) {
-      return { statusCode: 400, body: JSON.stringify({ ok:false, error:'Missing fields' }) };
-    }
+    if (!to || !subject || !html) return { statusCode: 400, body: 'Missing fields' };
 
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'onboarding@resend.dev', // o el remitente que uses
-        to: [to],
-        subject,
-        html
-      })
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.office365.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.O365_USER,   // ej. notificaciones@progel.com.mx
+        pass: process.env.O365_PASS    // contraseña o app password
+      }
     });
 
-    const data = await r.json();
-    if (!r.ok) return { statusCode: 500, body: JSON.stringify({ ok:false, error: data }) };
-    return { statusCode: 200, body: JSON.stringify({ ok:true, data }) };
+    const info = await transporter.sendMail({
+      from: process.env.O365_USER,
+      to,
+      subject,
+      html
+    });
+
+    return { statusCode: 200, body: JSON.stringify({ ok:true, messageId: info.messageId }) };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ ok:false, error: e.message }) };
   }
