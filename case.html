@@ -6,32 +6,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
+    body { font-family: system-ui, Arial; max-width: 820px; margin: 40px auto; padding: 0 16px; }
     #info { margin-bottom: 12px; }
-    textarea { width:100%; height:90px; }
-    button { padding:10px; margin-top:8px; }
-    li { margin:6px 0; }
-    .meta { color:#666; font-size:12px; }
+    .row { display:flex; gap:12px; align-items:center; margin: 6px 0 12px; }
+    textarea { width:100%; min-height:100px; }
+    button { padding:10px 14px; margin-top:8px; cursor:pointer; }
+
+    /* Lista y estilos de mensajes por rol */
+    ul#msgs { list-style:none; padding:0; }
+    .msg { margin:10px 0; padding:10px 12px; border-radius:10px; }
+    .cliente { background:#eef6ff; border:1px solid #cfe6ff; }
+    .proveedor { background:#f1ffe9; border:1px solid #d9f5c8; }
+    .meta { color:#666; font-size:12px; display:block; margin-bottom:6px; }
+    .badge { font-size:11px; padding:2px 6px; border-radius:6px; font-weight:600; }
+    .b-cliente { background:#dcebff; color:#114a8b; }
+    .b-proveedor { background:#e5f7d9; color:#2d6a1c; }
+
+    .hint { color:#666; font-size:12px; margin-top:4px; }
   </style>
 </head>
 <body>
   <h1>Mi Caso</h1>
   <div id="info">Cargando...</div>
+
   <h3>Mensajes</h3>
   <ul id="msgs"></ul>
+
   <h3>Enviar mensaje</h3>
   <form id="m">
+    <div class="row">
+      <label for="role"><b>Responder como:</b></label>
+      <select id="role" name="role">
+        <option value="Cliente">Cliente</option>
+        <option value="Proveedor">Proveedor</option>
+      </select>
+    </div>
     <textarea name="body" required placeholder="Escribe tu mensaje"></textarea>
     <button>Enviar</button>
+    <div class="hint">Sugerencia: comparte al proveedor este enlace con “role=Proveedor” para que su rol quede seleccionado automáticamente.</div>
   </form>
 
 <script>
+  // TODO: reemplaza con tus valores
   const SUPABASE_URL = 'https://koyimvxjwwitlqbhumjz.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtveWltdnhqd3dpdGxxYmh1bWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzQwMjIsImV4cCI6MjA3NzQxMDAyMn0.v563Cuq9AVfWeVGY8XCwWPJH3VrFFkssmJ1JPfZhdIk';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const cid = new URLSearchParams(location.search).get('cid');
+  const qs = new URLSearchParams(location.search);
+  const cid = qs.get('cid');
+  const urlRole = qs.get('role'); // Permite forzar rol por URL
   let caseId = null;
+
+  function setInitialRole() {
+    const sel = document.getElementById('role');
+    if (urlRole === 'Proveedor') sel.value = 'Proveedor';
+    else sel.value = 'Cliente';
+  }
 
   async function loadCase(){
     const { data, error } = await sb.from('cases').select('*').eq('public_case_id', cid).single();
@@ -41,6 +71,29 @@
       `<div><b>${data.company}</b> – ${data.product} <span class="meta">(${data.status})</span></div>`;
   }
 
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function renderMessages(list){
+    const ul = document.getElementById('msgs'); ul.innerHTML = '';
+    (list||[]).forEach(m=>appendMessage(m, ul));
+  }
+
+  function appendMessage(m, ulEl){
+    const ul = ulEl || document.getElementById('msgs');
+    const li=document.createElement('li');
+    const dt=new Date(m.created_at).toLocaleString();
+    const roleClass = m.sender === 'Proveedor' ? 'proveedor' : 'cliente';
+    const badge = m.sender === 'Proveedor' ? 'b-proveedor' : 'b-cliente';
+    li.className = `msg ${roleClass}`;
+    li.innerHTML = `
+      <span class="meta"><span class="badge ${badge}">${m.sender}</span> • ${dt}</span>
+      <div>${escapeHtml(m.body)}</div>
+    `;
+    ul.appendChild(li);
+  }
+
   async function loadMsgs(){
     if(!caseId) return;
     const { data, error } = await sb
@@ -48,31 +101,35 @@
       .select('*')
       .eq('case_id', caseId)
       .order('created_at', { ascending: true });
-    const ul = document.getElementById('msgs'); ul.innerHTML = '';
-    (data||[]).forEach(m=>{
-      const li=document.createElement('li');
-      const dt=new Date(m.created_at).toLocaleString();
-      li.innerHTML = `<span class="meta">[${dt}] ${m.sender}:</span> ${m.body}`;
-      ul.appendChild(li);
-    });
+    if(error) return;
+    renderMessages(data);
   }
 
   document.getElementById('m').addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const body = new FormData(e.target).get('body').trim();
+    const fd = new FormData(e.target);
+    const body = (fd.get('body')||'').trim();
+    const sender = fd.get('role') || 'Cliente';
     if(!body) return;
-    const { error } = await sb.from('messages').insert({
-      case_id: caseId, sender: 'Cliente', body
-    });
-    if(!error){ e.target.reset(); loadMsgs(); }
+    const { data, error } = await sb.from('messages').insert({
+      case_id: caseId, sender, body
+    }).select('*').single();
+    if(!error){
+      e.target.reset();
+      document.getElementById('role').value = sender; // conserva el rol elegido
+      appendMessage(data);
+    }
   });
 
   (async ()=>{
     if(!cid){ document.getElementById('info').textContent='Falta cid'; return; }
+    setInitialRole();
     await loadCase(); await loadMsgs();
     sb.channel('realtime:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `case_id=eq.${caseId}` },
-        payload => loadMsgs())
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `case_id=eq.${caseId}` },
+        ({ new: m }) => appendMessage(m)
+      )
       .subscribe();
   })();
 </script>

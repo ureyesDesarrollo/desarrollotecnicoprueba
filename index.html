@@ -1,83 +1,169 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8" />
   <title>Crear Caso</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
-    label { display:block; margin:12px 0 6px; }
-    input,button { padding:10px; width:100%; box-sizing: border-box; }
-    button { margin-top:14px; cursor:pointer; }
-    .ok { color: #0a7f2e; } .err { color:#b00020; }
+    body { font-family: system-ui, Arial; max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    h2 { margin-top: 28px; }
+    label { display:block; margin:12px 0 6px; font-weight:600; }
+    input, textarea, select { padding:10px; width:100%; box-sizing: border-box; }
+    textarea { min-height: 110px; }
+    .row { display:flex; gap:12px; }
+    .row > div { flex:1; }
+    .hint { color:#666; font-size:12px; margin-top:4px; }
+    button { margin-top:16px; padding:12px 16px; cursor:pointer; }
+    .ok { color:#0a7f2e; } .err { color:#b00020; }
+    .box { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:16px; }
   </style>
 </head>
+
 <body>
   <h1>Crear Caso</h1>
-  <form id="f">
+
+  <form id="f" class="box">
+    <h2>1. Información del Cliente</h2>
     <label>Empresa</label>
     <input name="company" required />
-    <label>Email del Cliente</label>
-    <input name="email" type="email" required />
-    <label>Producto</label>
-    <input name="product" required />
+
+    <div class="row">
+      <div>
+        <label>País / Ciudad / Planta</label>
+        <input name="pais_ciudad_planta" />
+      </div>
+      <div>
+        <label>Puesto</label>
+        <input name="puesto" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Contacto Técnico</label>
+        <input name="contacto_tecnico" />
+      </div>
+      <div>
+        <label>Correo / Teléfono</label>
+        <input name="contacto" />
+        <div class="hint">Puedes poner email y/o teléfono del contacto técnico.</div>
+      </div>
+    </div>
+
+    <h2>2. Producto a Desarrollar</h2>
+    <label>Nombre del producto o aplicación</label>
+    <input name="nombre_producto" placeholder="Ej. gomita azucarada, gelatina lista, jamón cocido, etc." />
+
+    <label>Descripción breve del producto</label>
+    <textarea name="descripcion_producto" placeholder="Describe brevemente el producto o aplicación."></textarea>
+
+    <h2>3. Sector del Cliente</h2>
+    <label>Selecciona 1</label>
+    <select name="sector" required>
+      <option value="" disabled selected>— Selecciona —</option>
+      <option>Gelatinas</option>
+      <option>Confitería / Gomitas</option>
+      <option>Lácteos</option>
+      <option>Cárnicos</option>
+      <option>Farmacéutica / Nutracéutica</option>
+      <option>Otro</option>
+    </select>
+
+    <h2>Contacto para notificación</h2>
+    <div class="row">
+      <div>
+        <label>Email del Cliente</label>
+        <input name="email" type="email" required />
+      </div>
+      <div>
+        <label>Producto (resumen corto)</label>
+        <input name="product" required />
+      </div>
+    </div>
+
     <button>Enviar</button>
   </form>
+
   <p id="msg"></p>
 
-<script>
-  const SUPABASE_URL = 'https://koyimvxjwwitlqbhumjz.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtveWltdnhqd3dpdGxxYmh1bWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzQwMjIsImV4cCI6MjA3NzQxMDAyMn0.v563Cuq9AVfWeVGY8XCwWPJH3VrFFkssmJ1JPfZhdIk';
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <script>
+    // Supabase config
+    const SUPABASE_URL = 'https://koyimvxjwwitlqbhumjz.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtveWltdnhqd3dpdGxxYmh1bWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzQwMjIsImV4cCI6MjA3NzQxMDAyMn0.v563Cuq9AVfWeVGY8XCwWPJH3VrFFkssmJ1JPfZhdIk';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // Ajusta este correo del Proveedor
-  const notifyEmail = 'ulises.reyes@progel.com.mx';
+    // Ajusta el correo del Proveedor que recibirá notificación
+    const notifyEmail = 'ulises.reyes@progel.com.mx';
 
-  async function sendEmail(to, subject, html) {
-  const r = await fetch('/.netlify/functions/send-email', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ to, subject, html })
-  });
-  return r.json();
-}
+    async function sendEmail(to, subject, html) {
+      const r = await fetch('/.netlify/functions/send-email', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ to, subject, html })
+      });
+      return r.json();
+    }
 
-  document.getElementById('f').addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const form = new FormData(e.target);
-    const company = form.get('company').trim();
-    const email = form.get('email').trim();
-    const product = form.get('product').trim();
-    const msg = document.getElementById('msg');
-    msg.textContent = 'Creando caso...';
+    document.getElementById('f').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
 
-    const { data, error } = await supabaseClient
-      .from('cases')
-      .insert({ company, customer_email: email, product })
-      .select('public_case_id')
-      .single();
+      const payload = {
+        company: (fd.get('company')||'').trim(),
+        customer_email: (fd.get('email')||'').trim(),
+        product: (fd.get('product')||'').trim(),
+        pais_ciudad_planta: (fd.get('pais_ciudad_planta')||'').trim(),
+        contacto_tecnico: (fd.get('contacto_tecnico')||'').trim(),
+        puesto: (fd.get('puesto')||'').trim(),
+        contacto: (fd.get('contacto')||'').trim(),
+        nombre_producto: (fd.get('nombre_producto')||'').trim(),
+        descripcion_producto: (fd.get('descripcion_producto')||'').trim(),
+        sector: fd.get('sector') || null
+      };
 
-    if(error){ msg.textContent = 'Error: ' + error.message; msg.className = 'err'; return; }
+      const msg = document.getElementById('msg');
+      msg.textContent = 'Creando caso...';
 
-    const caseLink = `${location.origin}/case.html?cid=${data.public_case_id}`;
+      // Insert en cases
+      const { data, error } = await supabaseClient
+        .from('cases')
+        .insert(payload)
+        .select('public_case_id')
+        .single();
 
-    // Correo al cliente
-    await sendEmail(email, 'Tu Caso ha sido creado', `
-      <p>Gracias por contactarnos.</p>
-      <p>Tu caso ha sido creado. Ver y responder en: <a href="${caseLink}">Mi Caso</a></p>
-    `);
+      if (error) { msg.textContent = 'Error: ' + error.message; msg.className = 'err'; return; }
 
-    // Correo al Proveedor
-    await sendEmail(notifyEmail, `Nuevo Caso – ${company}`, `
-      <p><b>Empresa:</b> ${company}<br><b>Email:</b> ${email}<br><b>Producto:</b> ${product}</p>
-      <p><a href="${caseLink}">Abrir caso</a></p>
-    `);
+      const caseLink = `${location.origin}/case.html?cid=${data.public_case_id}`;
+      const supplierLink = `${caseLink}&role=Proveedor`;
 
-    msg.innerHTML = `Caso creado. Revisa tu correo. <a href="${caseLink}">Abrir ahora</a>`;
-    msg.className = 'ok';
-    e.target.reset();
-  });
-</script>
+      // Email al Cliente
+      await sendEmail(payload.customer_email, 'Tu Caso ha sido creado – Cliente', `
+        <p>Hola, este es tu caso como <b>Cliente</b>.</p>
+        <p>Puedes ver y responder aquí: <a href="${caseLink}">Mi Caso</a></p>
+      `);
+
+      // Email al Proveedor
+      // Incluimos el resumen de los campos clave
+      await sendEmail(notifyEmail, `Nuevo Caso – ${payload.company}`, `
+        <p><b>Nuevo caso creado por Cliente</b></p>
+        <ul>
+          <li><b>Empresa:</b> ${payload.company}</li>
+          <li><b>País/Ciudad/Planta:</b> ${payload.pais_ciudad_planta || '-'}</li>
+          <li><b>Contacto Técnico:</b> ${payload.contacto_tecnico || '-'} (${payload.puesto || '-'})</li>
+          <li><b>Correo/Teléfono contacto:</b> ${payload.contacto || '-'}</li>
+          <li><b>Sector:</b> ${payload.sector || '-'}</li>
+          <li><b>Producto:</b> ${payload.nombre_producto || payload.product || '-'}</li>
+          <li><b>Descripción:</b> ${payload.descripcion_producto ? payload.descripcion_producto.replace(/</g,'&lt;') : '-'}</li>
+        </ul>
+        <p>Responder como <b>Proveedor</b>: <a href="${supplierLink}">Abrir caso</a></p>
+      `);
+
+      msg.innerHTML = `Caso creado. Revisa tu correo. <a href="${caseLink}">Abrir ahora</a>`;
+      msg.className = 'ok';
+      e.target.reset();
+    });
+  </script>
 </body>
 </html>
