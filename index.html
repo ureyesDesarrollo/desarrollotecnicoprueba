@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Crear Caso</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
+    label { display:block; margin:12px 0 6px; }
+    input,button { padding:10px; width:100%; box-sizing: border-box; }
+    button { margin-top:14px; cursor:pointer; }
+    .ok { color: #0a7f2e; } .err { color:#b00020; }
+  </style>
+</head>
+<body>
+  <h1>Crear Caso</h1>
+  <form id="f">
+    <label>Empresa</label>
+    <input name="company" required />
+    <label>Email del Cliente</label>
+    <input name="email" type="email" required />
+    <label>Producto</label>
+    <input name="product" required />
+    <button>Enviar</button>
+  </form>
+  <p id="msg"></p>
+
+<script>
+  const SUPABASE_URL = 'https://koyimvxjwwitlqbhumjz.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtveWltdnhqd3dpdGxxYmh1bWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzQwMjIsImV4cCI6MjA3NzQxMDAyMn0.v563Cuq9AVfWeVGY8XCwWPJH3VrFFkssmJ1JPfZhdIk';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // Ajusta este correo del Proveedor
+  const notifyEmail = 'ulises.reyes@progel.com.mx';
+
+  async function sendEmail(to, subject, html) {
+  const r = await fetch('/.netlify/functions/send-email', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ to, subject, html })
+  });
+  return r.json();
+}
+
+  document.getElementById('f').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const company = form.get('company').trim();
+    const email = form.get('email').trim();
+    const product = form.get('product').trim();
+    const msg = document.getElementById('msg');
+    msg.textContent = 'Creando caso...';
+
+    const { data, error } = await supabaseClient
+      .from('cases')
+      .insert({ company, customer_email: email, product })
+      .select('public_case_id')
+      .single();
+
+    if(error){ msg.textContent = 'Error: ' + error.message; msg.className = 'err'; return; }
+
+    const caseLink = `${location.origin}/case.html?cid=${data.public_case_id}`;
+
+    // Correo al cliente
+    await sendEmail(email, 'Tu Caso ha sido creado', `
+      <p>Gracias por contactarnos.</p>
+      <p>Tu caso ha sido creado. Ver y responder en: <a href="${caseLink}">Mi Caso</a></p>
+    `);
+
+    // Correo al Proveedor
+    await sendEmail(notifyEmail, `Nuevo Caso – ${company}`, `
+      <p><b>Empresa:</b> ${company}<br><b>Email:</b> ${email}<br><b>Producto:</b> ${product}</p>
+      <p><a href="${caseLink}">Abrir caso</a></p>
+    `);
+
+    msg.innerHTML = `Caso creado. Revisa tu correo. <a href="${caseLink}">Abrir ahora</a>`;
+    msg.className = 'ok';
+    e.target.reset();
+  });
+</script>
+</body>
+</html>

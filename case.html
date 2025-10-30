@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mi Caso</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
+    #info { margin-bottom: 12px; }
+    textarea { width:100%; height:90px; }
+    button { padding:10px; margin-top:8px; }
+    li { margin:6px 0; }
+    .meta { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>Mi Caso</h1>
+  <div id="info">Cargando...</div>
+  <h3>Mensajes</h3>
+  <ul id="msgs"></ul>
+  <h3>Enviar mensaje</h3>
+  <form id="m">
+    <textarea name="body" required placeholder="Escribe tu mensaje"></textarea>
+    <button>Enviar</button>
+  </form>
+
+<script>
+  const SUPABASE_URL = 'https://koyimvxjwwitlqbhumjz.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtveWltdnhqd3dpdGxxYmh1bWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MzQwMjIsImV4cCI6MjA3NzQxMDAyMn0.v563Cuq9AVfWeVGY8XCwWPJH3VrFFkssmJ1JPfZhdIk';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const cid = new URLSearchParams(location.search).get('cid');
+  let caseId = null;
+
+  async function loadCase(){
+    const { data, error } = await sb.from('cases').select('*').eq('public_case_id', cid).single();
+    if(error){ document.getElementById('info').textContent = error.message; return; }
+    caseId = data.id;
+    document.getElementById('info').innerHTML =
+      `<div><b>${data.company}</b> – ${data.product} <span class="meta">(${data.status})</span></div>`;
+  }
+
+  async function loadMsgs(){
+    if(!caseId) return;
+    const { data, error } = await sb
+      .from('messages')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: true });
+    const ul = document.getElementById('msgs'); ul.innerHTML = '';
+    (data||[]).forEach(m=>{
+      const li=document.createElement('li');
+      const dt=new Date(m.created_at).toLocaleString();
+      li.innerHTML = `<span class="meta">[${dt}] ${m.sender}:</span> ${m.body}`;
+      ul.appendChild(li);
+    });
+  }
+
+  document.getElementById('m').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const body = new FormData(e.target).get('body').trim();
+    if(!body) return;
+    const { error } = await sb.from('messages').insert({
+      case_id: caseId, sender: 'Cliente', body
+    });
+    if(!error){ e.target.reset(); loadMsgs(); }
+  });
+
+  (async ()=>{
+    if(!cid){ document.getElementById('info').textContent='Falta cid'; return; }
+    await loadCase(); await loadMsgs();
+    sb.channel('realtime:messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `case_id=eq.${caseId}` },
+        payload => loadMsgs())
+      .subscribe();
+  })();
+</script>
+</body>
+</html>
