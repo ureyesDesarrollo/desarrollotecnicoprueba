@@ -13,7 +13,7 @@ export async function handler(event) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'ulises.reyes@progel.com.mx', // o el remitente que uses
+        from: 'onboarding@resend.dev', // o el remitente que uses
         to: [to],
         subject,
         html
